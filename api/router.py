@@ -33,15 +33,18 @@ async def get_general_info(url: Annotated[HttpUrl, Form()]) -> GeneralInfo:
         url: посилання на сайт, на якій будемо відправялти запит
     """
     req = requests.get(url)
-    print(req.text)
     soup = BeautifulSoup(req.text, 'html.parser')
 
-    title = soup.title.getText()    # отримуємо заголовок сайта
+    title_tag = soup.title   # отримуємо заголовок сайта
     meta_desc = soup.find('meta', {'name': 'description'})  # Намагаємося отримати опис сайту, якщо він є
 
     description = 'Не знайдено'
     if meta_desc:
         description = meta_desc.attrs['content']
+
+    title = 'У цього сайта немає зоголовку'
+    if title_tag:
+        title = title.getText()
 
     return {
         'title': title,
