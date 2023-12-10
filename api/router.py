@@ -44,7 +44,7 @@ async def get_general_info(url: Annotated[HttpUrl, Form()]) -> GeneralInfo:
 
     title = 'У цього сайта немає зоголовку'
     if title_tag:
-        title = title.getText()
+        title = title_tag.getText()
 
     return {
         'title': title,
