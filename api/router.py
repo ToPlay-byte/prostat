@@ -13,6 +13,10 @@ from fastapi.responses import Response
 from pydantic import HttpUrl
 
 from api.utils import get_full_path
+from api.models import (
+    GeneralInfo, Image,
+    Style, Script
+)
 
 
 router = APIRouter(
@@ -22,13 +26,14 @@ router = APIRouter(
 
 
 @router.post('/get_general_info/')
-async def get_general_info(url: Annotated[HttpUrl, Form()]) -> Dict:
+async def get_general_info(url: Annotated[HttpUrl, Form()]) -> GeneralInfo:
     """Отрмати заголовок сайта та його опис(якщо він існує).
 
     Параметри:
         url: посилання на сайт, на якій будемо відправялти запит
     """
     req = requests.get(url)
+    print(req.text)
     soup = BeautifulSoup(req.text, 'html.parser')
 
     title = soup.title.getText()    # отримуємо заголовок сайта
@@ -61,7 +66,7 @@ async def get_info_site(url: Annotated[HttpUrl, Form()]) -> List[Dict]:
 
 
 @router.post('/get_all_images/')
-async def get_all_images(url: Annotated[HttpUrl, Form()]) -> List[Dict]:
+async def get_all_images(url: Annotated[HttpUrl, Form()]) -> List[Image]:
     """Отримати всі забраження на сайті.
 
     Параметри:
@@ -79,13 +84,13 @@ async def get_all_images(url: Annotated[HttpUrl, Form()]) -> List[Dict]:
             continue
 
         link = get_full_path(url, image_url)
-        urls.append({'link': link, 'descriptin': image.attrs.get('alt')})
+        urls.append({'link': link, 'description': image.attrs.get('alt')})
 
     return urls
 
 
-@router.post('/get_styles_info')
-async def get_styles_info(url: Annotated[HttpUrl, Form()]) -> List[Dict]:
+@router.post('/get_styles_info/')
+async def get_styles_info(url: Annotated[HttpUrl, Form()]) -> List[Style]:
     """Отримуємо усі статичні стили сайта
 
     Параметри:
@@ -106,13 +111,13 @@ async def get_styles_info(url: Annotated[HttpUrl, Form()]) -> List[Dict]:
     for link in styles_links:
         link_url = get_full_path(url, link.attrs.get('href'))
         link_content = requests.get(link_url).text
-        all_styles.append({'Link': link_url, 'content': link_content})
+        all_styles.append({'link': link_url, 'content': link_content})
 
     return all_styles
 
 
-@router.post('/get_scripts_info')
-async def get_scripts_info(url: Annotated[HttpUrl, Form()]) -> List[Dict]:
+@router.post('/get_scripts_info/')
+async def get_scripts_info(url: Annotated[HttpUrl, Form()]) -> List[Script]:
     """Отримуємо усі статичні стили сайта
 
     Параметри:
