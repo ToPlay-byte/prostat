@@ -133,12 +133,13 @@ async def get_scripts_info(url: Annotated[HttpUrl, Form()]) -> List[Script]:
     all_scripts = []
 
     for tag in scripts_tags:
-        if tag.has_attr('src'):
-            script_url = tag.attrs.get('src')
+        src = tag.attrs.get('src')
+        if src:
+            script_url = get_full_path(url, src)
             script_content = requests.get(script_url).text
             all_scripts.append({'link': script_url, 'content': script_content})
-        else:
-            all_scripts.append({'content': tag.getText()})
+
+        all_scripts.append({'content': tag.getText()})
 
     return all_scripts
 
