@@ -166,11 +166,10 @@ async def get_quantity_tags(url: Annotated[HttpUrl, Form()], tags: Optional[List
 
     for tag in tags:
         quantity = len(soup.find_all(tag))
-        if quantity:
-            counts_tags.append({
-                'name': tag,
-                'quantity': quantity
-            })
+        counts_tags.append({
+            'name': tag,
+            'quantity': quantity
+        })
 
     return counts_tags
 
