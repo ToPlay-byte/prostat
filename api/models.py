@@ -20,4 +20,4 @@ class Style(BaseModel):
 
 class Script(BaseModel):
     link: Optional[str] = None
-    content: str
+    content: Optional[str]

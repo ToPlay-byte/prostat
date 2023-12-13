@@ -1,18 +1,12 @@
-import re
-
 from typing import List, Dict, Annotated, Optional
-from urllib.parse import urljoin
-
-import requests
 
 from bs4 import BeautifulSoup
 
-from fastapi import APIRouter, Form, Query
-from fastapi.responses import Response
+from fastapi import APIRouter, Form, Query, HTTPException, status
 
 from pydantic import HttpUrl
 
-from api.utils import get_full_path
+from api.utils import get_full_path, get_request_content
 from api.models import (
     GeneralInfo, Image,
     Style, Script
@@ -32,8 +26,10 @@ async def get_general_info(url: Annotated[HttpUrl, Form()]) -> GeneralInfo:
     Параметри:
         url: посилання на сайт, на якій будемо відправялти запит
     """
-    req = requests.get(url)
-    soup = BeautifulSoup(req.text, 'html.parser')
+    content = get_request_content(url)
+    if not content:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail='Не можемо взяти дані з цього посилання')
+    soup = BeautifulSoup(content, 'html.parser')
 
     title_tag = soup.title   # отримуємо заголовок сайта
     meta_desc = soup.find('meta', {'name': 'description'})  # Намагаємося отримати опис сайту, якщо він є
@@ -46,10 +42,7 @@ async def get_general_info(url: Annotated[HttpUrl, Form()]) -> GeneralInfo:
     if title_tag:
         title = title_tag.getText()
 
-    return {
-        'title': title,
-        'description': description
-    }
+    return GeneralInfo(title=title, description=description)
 
 
 @router.post('/get_meta_info/')
@@ -59,8 +52,10 @@ async def get_info_site(url: Annotated[HttpUrl, Form()]) -> List[Dict]:
     Параметри:
         url: посилання на сайт, на якій будемо відправялти запит
     ."""
-    req = requests.get(url)
-    soup = BeautifulSoup(req.text, 'html.parser')
+    content = get_request_content(url)
+    if not content:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail='Не можемо взяти дані з цього посилання')
+    soup = BeautifulSoup(content, 'html.parser')
 
     meta_tags = soup.find_all('meta')   # Отримуємо усі мета теги
     meta = [tag.attrs for tag in meta_tags]    # Як відповідь на запит передаємо атрибути мета тегів
@@ -75,8 +70,10 @@ async def get_all_images(url: Annotated[HttpUrl, Form()]) -> List[Image]:
     Параметри:
         url: посилання на сайт, на якій будемо відправялти запит
     """
-    req = requests.get(url)
-    soup = BeautifulSoup(req.text, 'html.parser')
+    content = get_request_content(url)
+    if not content:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail='Не можемо взяти дані з цього посилання')
+    soup = BeautifulSoup(content, 'html.parser')
 
     images = soup.find_all('img')   # Отримуємо усі зображення на сайті
     urls = []
@@ -87,7 +84,7 @@ async def get_all_images(url: Annotated[HttpUrl, Form()]) -> List[Image]:
             continue
 
         link = get_full_path(url, image_url)
-        urls.append({'link': link, 'description': image.attrs.get('alt')})
+        urls.append(Image(link=link, description=image.attrs.get('alt')))
 
     return urls
 
@@ -99,8 +96,10 @@ async def get_styles_info(url: Annotated[HttpUrl, Form()]) -> List[Style]:
     Параметри:
         url: посилання на сайт, на якій будемо відправялти запит
     """
-    req = requests.get(url)
-    soup = BeautifulSoup(req.text, 'html.parser').head
+    content = get_request_content(url)
+    if not content:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail='Не можемо взяти дані з цього посилання')
+    soup = BeautifulSoup(content, 'html.parser').head
 
     styles_tags = soup.find_all('styles')   # Отримуємо усі styles теги
     styles_links = soup.find_all('link', {'rel': 'stylesheet'})   # Усі посилання на стилі
@@ -113,8 +112,10 @@ async def get_styles_info(url: Annotated[HttpUrl, Form()]) -> List[Style]:
     # Перебаємо усі посилання на стилі
     for link in styles_links:
         link_url = get_full_path(url, link.attrs.get('href'))
-        link_content = requests.get(link_url).text
-        all_styles.append({'link': link_url, 'content': link_content})
+        link_content = get_request_content(link_url)
+        if link_content is None:
+            continue
+        all_styles.append(Style(link=link_url, content=link_content))
 
     return all_styles
 
@@ -126,34 +127,41 @@ async def get_scripts_info(url: Annotated[HttpUrl, Form()]) -> List[Script]:
     Параметри:
         url: посилання на сайт, на якій будемо відправялти запит
     """
-    req = requests.get(url)
-    soup = BeautifulSoup(req.text, 'html.parser')
+    content = get_request_content(url)
+    if not content:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail='Не можемо взяти дані з цього посилання')
+    soup = BeautifulSoup(content, 'html.parser')
 
     scripts_tags = soup.findAll('script')   # Отримуємо усі скрипти на сайті
     all_scripts = []
-
     for tag in scripts_tags:
         src = tag.attrs.get('src')
         if src:
             script_url = get_full_path(url, src)
-            script_content = requests.get(script_url).text
-            all_scripts.append({'link': script_url, 'content': script_content})
-
-        all_scripts.append({'content': tag.getText()})
+            script_content = get_request_content(script_url)
+            if script_content:
+                all_scripts.append(Script(link=script_url, content=script_content))
+        else:
+            all_scripts.append(Script(content=tag.getText()))
 
     return all_scripts
 
 
 @router.post('/get_quantity_tags/')
-async def get_quantity_tags(url: Annotated[HttpUrl, Form()], tags: Optional[List[str]] = Query(None)) -> List[Dict]:
+async def get_quantity_tags(
+        url: Annotated[HttpUrl, Form()],
+        tags: Optional[List[str]] = Query(None)
+) -> List[Dict]:
     """Отримуємо кількість статичних тегів на сайті
 
     Параметри:
         url: посилання на сайт, на якій будемо відправялти запит
         tags: перелік тегів, по яким будемо здійснювати перелік
     """
-    req = requests.get(url)
-    soup = BeautifulSoup(req.text, 'html.parser')
+    content = get_request_content(url)
+    if not content:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail='Не можемо взяти дані з цього посилання')
+    soup = BeautifulSoup(content, 'html.parser')
 
     counts_tags = []
     if tags is None:
