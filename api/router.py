@@ -1,5 +1,7 @@
+from concurrent.futures import ThreadPoolExecutor
 from typing import List, Dict, Annotated, Optional
 
+import bs4
 from bs4 import BeautifulSoup
 
 from fastapi import APIRouter, Form, Query, HTTPException, status
@@ -134,7 +136,8 @@ async def get_scripts_info(url: Annotated[HttpUrl, Form()]) -> List[Script]:
 
     scripts_tags = soup.findAll('script')   # Отримуємо усі скрипти на сайті
     all_scripts = []
-    for tag in scripts_tags:
+
+    def get_tag_content(tag: bs4.Tag):
         src = tag.attrs.get('src')
         if src:
             script_url = get_full_path(url, src)
@@ -143,6 +146,9 @@ async def get_scripts_info(url: Annotated[HttpUrl, Form()]) -> List[Script]:
                 all_scripts.append(Script(link=script_url, content=script_content))
         else:
             all_scripts.append(Script(content=tag.getText()))
+
+    with ThreadPoolExecutor(max_workers=5) as executor:
+        executor.map(get_tag_content, scripts_tags)
 
     return all_scripts
 
@@ -180,4 +186,3 @@ async def get_quantity_tags(
         })
 
     return counts_tags
-
