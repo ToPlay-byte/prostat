@@ -122,7 +122,7 @@ async def get_styles_info(url: Annotated[HttpUrl, Form()]) -> List[Style]:
 
 @router.post('/get_scripts_info/')
 async def get_scripts_info(url: Annotated[HttpUrl, Form()]) -> List[Script]:
-    """Отримуємо усі статичні стили сайта
+    """Отримуємо усі скрипти сайта
 
     Параметри:
         url: посилання на сайт, на якій будемо відправялти запит
